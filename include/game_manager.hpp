@@ -132,6 +132,7 @@ private:
         direction_line[1].color = sf::Color::Black;
         window_.draw(direction_line);
 
+
         // 3. Отрисовка одометрии (синий полупрозрачный круг - "призрак")
         // Наглядно показывает, как накапливается ошибка!
         Pose odom_pose = robot_.GetIntendedPos();
@@ -140,6 +141,17 @@ private:
         odom_shape.setPosition(odom_pose.x * ppm_, odom_pose.y * ppm_);
         odom_shape.setFillColor(sf::Color(0, 0, 255, 100)); // Полупрозрачный синий
         window_.draw(odom_shape);
+
+        // Линия направления одометрии (вектор theta)
+        sf::VertexArray odom_direction_line(sf::Lines, 2);
+        odom_direction_line[0].position = sf::Vector2f(odom_pose.x * ppm_, odom_pose.y * ppm_);
+        odom_direction_line[0].color = sf::Color::Black;
+        odom_direction_line[1].position = sf::Vector2f(
+            (odom_pose.x + std::cos(odom_pose.theta) * robot_radius_m * 1.5) * ppm_,
+            (odom_pose.y + std::sin(odom_pose.theta) * robot_radius_m * 1.5) * ppm_
+        );
+        odom_direction_line[1].color = sf::Color::Black;
+        window_.draw(odom_direction_line);
 
         window_.display();
     }
