@@ -10,7 +10,9 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 find_package(SFML COMPONENTS graphics window system REQUIRED)
 
 add_executable(amcl_game
-    source/main.cpp    
+    source/main.cpp
+    source/game_manager.cpp
+    source/robot.cpp
 )
 
 target_include_directories(amcl_game
