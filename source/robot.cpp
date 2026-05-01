@@ -2,12 +2,12 @@
 
 
 Robot::Robot(double start_x, double start_y, double start_theta, const Map& map)
-    : real_pose_{start_x, start_y, start_theta},
-        odom_(real_pose_),
-        lidar_(real_pose_, map, 72),
-        amcl_(500, map),
-        gen_(std::random_device{}()),
-        last_amcl_pose_{start_x, start_y, start_theta}
+    : real_pose_{start_x, start_y, start_theta}
+    , odom_(real_pose_)
+    , lidar_(real_pose_, map, 72)
+    , amcl_(500, map, lidar_)
+    , gen_(std::random_device{}())
+    , last_amcl_pose_{start_x, start_y, start_theta}
 {}
 
 

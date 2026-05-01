@@ -13,6 +13,7 @@ add_executable(amcl_game
     source/main.cpp
     source/game_manager.cpp
     source/robot.cpp
+    source/amcl.cpp
 )
 
 target_include_directories(amcl_game
