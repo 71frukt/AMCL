@@ -36,8 +36,8 @@ public:
         return is_wall_at_grid(grid_x, grid_y);
     }
 
-    size_t width() const { return width_; }
-    size_t height() const { return height_; }
+    size_t width()      const { return width_; }
+    size_t height()     const { return height_; }
     double resolution() const { return resolution_; }
 
 private:
