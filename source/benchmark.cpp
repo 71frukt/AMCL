@@ -1,17 +1,21 @@
 #include "benchmark.hpp"
-#include <fstream>
-#include <iostream>
-#include <random>
-#include <cmath>
-#include "benchmark.hpp"
 #include "odometry.hpp"
+#include "amcl.hpp"
+#include "naive_localizer.hpp"
+
 #include <fstream>
 #include <iostream>
 #include <random>
 #include <cmath>
+#include <chrono>
 
 Benchmark::Benchmark(const Map& map, int min_particles, int max_particles)
     : map_(map)
+    , lidar_(Pose{8.0, 8.0, 0.0}, map)
+    , amcl_(min_particles, max_particles, map_, lidar_)
+    , mcl_( max_particles, map_, lidar_)
+    , naive_localizer_(map_, lidar_, 0.4, 0.2)
+
     , min_particles_(min_particles)
     , max_particles_(max_particles)   
 {
@@ -26,14 +30,12 @@ void Benchmark::run_simulation(int steps, const std::string& csv_filepath)
         return;
     }
 
-    file << "step,gt_x,gt_y,gt_theta,odom_x,odom_y,odom_theta,amcl_x,amcl_y,amcl_theta,err_odom,err_amcl\n";
+    file << "step,gt_x,gt_y,odom_x,odom_y,amcl_x,amcl_y,mcl_x,mcl_y,naive_x,naive_y,"
+         << "err_odom,err_amcl,err_mcl,err_naive,time_amcl_us,time_mcl_us,time_naive_us\n";
 
     Pose gt_pose{8.0, 8.0, 0.0};
     Odometry blind_odom(gt_pose);
 
-    Lidar lidar(gt_pose, map_);
-    AMCL amcl(min_particles_, max_particles_, map_, lidar);
-    
     std::mt19937 gen(42); // Seed 42 гарантирует, что хаотичный маршрут будет повторяться при перезапусках
     std::normal_distribution<double> noise_odom_dist(0.0, 0.05);
     std::normal_distribution<double> noise_odom_theta(0.0, 0.02);
@@ -46,7 +48,7 @@ void Benchmark::run_simulation(int steps, const std::string& csv_filepath)
 
     // Переменные состояния робота
     int turn_steps_remaining = 0;
-    double current_turn_cmd = 0.0;
+    double current_turn_cmd  = 0.0;
 
     auto is_wall_ahead = [&](double current_x, double current_y, double current_theta, double dist) {
         double next_x = current_x + dist * std::cos(current_theta);
@@ -65,6 +67,8 @@ void Benchmark::run_simulation(int steps, const std::string& csv_filepath)
 
     for (int i = 0; i < steps; ++i)
     {
+        std::cout << i << std::endl;
+
         double cmd_dist = 0.0;
         double cmd_theta = 0.0;
 
@@ -109,7 +113,7 @@ void Benchmark::run_simulation(int steps, const std::string& csv_filepath)
         blind_odom.apply_delta(dx_odom, dy_odom, measured_theta);
 
         // 3. Симуляция показаний лидара
-        std::vector<double> ideal_scan = lidar.simulate_scan(gt_pose); 
+        std::vector<double> ideal_scan = lidar_.simulate_scan(gt_pose); 
         std::vector<double> noisy_scan = ideal_scan;
         for (auto& ray : noisy_scan)
         {
@@ -119,20 +123,40 @@ void Benchmark::run_simulation(int steps, const std::string& csv_filepath)
             }
         }
 
-        // 4. Обновление AMCL
-        amcl.update(measured_dist, measured_theta, noisy_scan);
+        auto start_amcl = std::chrono::high_resolution_clock::now();
+        amcl_.update(measured_dist, measured_theta, noisy_scan);
+        auto end_amcl = std::chrono::high_resolution_clock::now();
 
-        Pose amcl_pose = amcl.get_estimated_pose();
-        Pose final_odom = blind_odom.get_pose();
+        auto start_mcl = std::chrono::high_resolution_clock::now();
+        mcl_.update(measured_dist, measured_theta, noisy_scan);
+        auto end_mcl = std::chrono::high_resolution_clock::now();
 
-        double err_odom = std::hypot(final_odom.x - gt_pose.x, final_odom.y - gt_pose.y);
-        double err_amcl = std::hypot(amcl_pose.x - gt_pose.x, amcl_pose.y - gt_pose.y);
+        auto start_naive = std::chrono::high_resolution_clock::now();
+        naive_localizer_.update(noisy_scan);
+        auto end_naive = std::chrono::high_resolution_clock::now();
+
+        Pose p_odom  = blind_odom      .get_pose();
+        Pose p_amcl  = amcl_           .get_estimated_pose();
+        Pose p_mcl   = mcl_            .get_estimated_pose();
+        Pose p_naive = naive_localizer_.get_estimated_pose();
+
+        double err_odom  = std::hypot(p_odom.x  - gt_pose.x, p_odom.y  - gt_pose.y);
+        double err_amcl  = std::hypot(p_amcl.x  - gt_pose.x, p_amcl.y  - gt_pose.y);
+        double err_mcl   = std::hypot(p_mcl.x   - gt_pose.x, p_mcl.y   - gt_pose.y);
+        double err_naive = std::hypot(p_naive.x - gt_pose.x, p_naive.y - gt_pose.y);
+        
+        auto t_amcl  = std::chrono::duration_cast<std::chrono::microseconds>(end_amcl  - start_amcl) .count();
+        auto t_mcl   = std::chrono::duration_cast<std::chrono::microseconds>(end_mcl   - start_mcl)  .count();
+        auto t_naive = std::chrono::duration_cast<std::chrono::microseconds>(end_naive - start_naive).count();
 
         file << i << ","
-             << gt_pose.x << "," << gt_pose.y << "," << gt_pose.theta << ","
-             << final_odom.x << "," << final_odom.y << "," << final_odom.theta << ","
-             << amcl_pose.x << "," << amcl_pose.y << "," << amcl_pose.theta << ","
-             << err_odom << "," << err_amcl << "\n";
+             << gt_pose.x << "," << gt_pose.y << ","
+             << p_odom.x  << "," << p_odom.y  << ","
+             << p_amcl.x  << "," << p_amcl.y  << ","
+             << p_mcl.x   << "," << p_mcl.y   << ","
+             << p_naive.x << "," << p_naive.y << ","
+             << err_odom  << "," << err_amcl  << "," << err_mcl << "," << err_naive << ","
+             << t_amcl    << "," << t_mcl     << "," << t_naive << "\n";
     }
 
     file.close();

@@ -1,9 +1,12 @@
 #pragma once
 
-#include "map.hpp"
-#include "amcl.hpp"
-#include "lidar.hpp"
 #include <string>
+
+#include "map.hpp"
+#include "naive_localizer.hpp"
+#include "amcl.hpp"
+#include "mcl.hpp"
+
 
 class Benchmark
 {
@@ -15,6 +18,11 @@ public:
 
 private:
     const Map& map_;
+    Lidar lidar_;
+    
+    AMCL           amcl_;
+    MCL            mcl_;
+    NaiveLocalizer naive_localizer_;
 
     const int min_particles_ = 500;
     const int max_particles_ = 5000;

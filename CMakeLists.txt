@@ -16,6 +16,8 @@ add_executable(amcl_game
     source/game_manager.cpp
     source/robot.cpp
     source/amcl.cpp
+    source/mcl.cpp
+    source/naive_localizer.cpp
 )
 
 target_include_directories(amcl_game
@@ -35,6 +37,8 @@ add_executable(run_benchmark
     benchmark/main_benchmark.cpp 
     source/benchmark.cpp 
     source/amcl.cpp
+    source/mcl.cpp
     source/robot.cpp
+    source/naive_localizer.cpp
 )
 target_include_directories(run_benchmark PRIVATE include)

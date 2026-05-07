@@ -1,6 +1,5 @@
-#include "amcl.hpp"
+#include "mcl.hpp"
 #include <numbers>
-#include <unordered_set>
 #include <tuple>
 #include <cmath>
 #include <algorithm>
@@ -19,20 +18,19 @@ namespace
     };
 }
 
-AMCL::AMCL(int min_particles, int max_particles, const Map& map, Lidar& lidar)
+MCL::MCL(int num_particles, const Map& map, Lidar& lidar)
     : map_(map)
     , lidar_(lidar)
     , gen_(std::random_device{}())
-    , min_particles_(min_particles)
-    , max_particles_(max_particles)
+    , n_particles_(num_particles)
     , w_slow_(0.0)
     , w_fast_(0.0)
 {
-    particles_.resize(max_particles);
+    particles_.resize(num_particles);
     initialize_particles_();
 }
 
-void AMCL::initialize_particles_()
+void MCL::initialize_particles_()
 {
     std::uniform_real_distribution<double> dist_x(0, map_.width()  * map_.resolution());
     std::uniform_real_distribution<double> dist_y(0, map_.height() * map_.resolution());
@@ -50,7 +48,7 @@ void AMCL::initialize_particles_()
     }
 }
 
-void AMCL::predict_(double distance, double dtheta)
+void MCL::predict_(double distance, double dtheta)
 {
     std::normal_distribution<double> noise_dist(0.0, 0.1 * std::abs(distance) + 0.01);
     std::normal_distribution<double> noise_theta(0.0, 0.1 * std::abs(dtheta) + 0.02);
@@ -65,12 +63,10 @@ void AMCL::predict_(double distance, double dtheta)
         p.pose.y += p_dist * std::sin(p.pose.theta);
     }
 }
-
-void AMCL::update_weights_(const std::vector<double>& actual_scan)
+void MCL::update_weights_(const std::vector<double>& actual_scan)
 {
-    double dispersion = calculate_cloud_dispersion_();
-    
-    double sigma = 0.5 + std::min(1.5, dispersion * 0.3);
+    // Фиксированная сигма для классического MCL (без адаптивности)
+    double sigma = 1.0; 
     double two_sigma_sq = 2.0 * sigma * sigma;
 
     double weight_sum = 0.0;
@@ -84,31 +80,38 @@ void AMCL::update_weights_(const std::vector<double>& actual_scan)
         }
 
         std::vector<double> p_scan = lidar_.simulate_scan(p.pose);
-        double sse = 0.0;
+        double mse = 0.0;
 
         for (size_t i = 0; i < actual_scan.size(); ++i)
         {
-            double diff = actual_scan[i] - p_scan[i];
-            sse += diff * diff;
+            double diff = std::abs(actual_scan[i] - p_scan[i]);
+            diff = std::min(diff, 2.0); // Защита от промаха мимо угла
+            mse += diff * diff;
         }
 
-        p.weight = std::exp(-sse / two_sigma_sq);
+        mse /= actual_scan.size(); // Переход к MSE
+
+        // Noise floor: защищает от обнуления весов
+        p.weight = std::exp(-mse / two_sigma_sq) + 1e-6; 
         weight_sum += p.weight;
     }
 
-    double w_avg = weight_sum / particles_.size();
-
-    if (w_slow_ == 0.0) w_slow_ = w_avg;
-    if (w_fast_ == 0.0) w_fast_ = w_avg;
-
-    w_slow_ += alpha_slow_ * (w_avg - w_slow_);
-    w_fast_ += alpha_fast_ * (w_avg - w_fast_);
-
-    normalize_weights_();
+    // В чистом MCL нет w_slow и w_fast. Сразу нормализуем.
+    if (weight_sum > 0.0)
+    {
+        for (auto& p : particles_)
+        {
+            p.weight /= weight_sum;
+        }
+    }
+    else
+    {
+        initialize_particles_(); // Fallback на крайний случай
+    }
 }
 
 
-void AMCL::update(double odom_distance, double odom_dtheta, const std::vector<double>& actual_scan)
+void MCL::update(double odom_distance, double odom_dtheta, const std::vector<double>& actual_scan)
 {
     predict_(odom_distance, odom_dtheta);
     
@@ -117,17 +120,94 @@ void AMCL::update(double odom_distance, double odom_dtheta, const std::vector<do
     resample_();
 }
 
-void AMCL::resample_()
+// void MCL::resample_()
+// {
+//     std::vector<Particle> new_particles;
+//     new_particles.reserve(max_particles_);
+
+//     std::unordered_set<std::tuple<int, int, int>, BinHash> occupied_bins;
+
+//     double p_random = std::max(0.0, 1.0 - w_fast_ / w_slow_);
+//     std::uniform_real_distribution<double> unit_dist(0.0, 1.0);
+    
+//     double inv_n = 1.0 / particles_.size();
+//     double r = unit_dist(gen_) * inv_n;
+//     double c = particles_[0].weight;
+//     int i = 0;
+
+//     std::normal_distribution<double> jitter_pos(0.0, 0.03);
+//     std::normal_distribution<double> jitter_rot(0.0, 0.02);
+
+//     int k = 0;
+//     int n_req = min_particles_; 
+//     int m = 0;
+
+//     while (new_particles.size() < max_particles_ && 
+//           (new_particles.size() < n_req || new_particles.size() < min_particles_))
+//     {
+//         Particle p;
+
+//         if (unit_dist(gen_) < p_random)
+//         {
+//             p = generate_random_particle_();
+//         }
+//         else
+//         {
+//             double u = r + m * inv_n;
+//             while (u > c && i < particles_.size() - 1)
+//             {
+//                 i++;
+//                 c += particles_[i].weight;
+//             }
+
+//             p = particles_[i];
+            
+//             p.pose.x += jitter_pos(gen_);
+//             p.pose.y += jitter_pos(gen_);
+//             p.pose.theta += jitter_rot(gen_);
+            
+//             p.weight = 1.0; 
+//             m++;
+//         }
+
+//         int bin_x = static_cast<int>(p.pose.x / bin_size_x_);
+//         int bin_y = static_cast<int>(p.pose.y / bin_size_y_);
+//         int bin_theta = static_cast<int>(p.pose.theta / bin_size_theta_);
+//         auto bin = std::make_tuple(bin_x, bin_y, bin_theta);
+
+//         if (occupied_bins.find(bin) == occupied_bins.end())
+//         {
+//             occupied_bins.insert(bin);
+//             k++;
+            
+//             if (k > 1)
+//             {
+//                 double a = 1.0 - 2.0 / (9.0 * (k - 1));
+//                 double b = kld_z_ * std::sqrt(2.0 / (9.0 * (k - 1)));
+//                 n_req = static_cast<int>( (k - 1) / (2.0 * kld_err_) * std::pow(a + b, 3) );
+//             }
+//         }
+
+//         new_particles.push_back(p);
+//     }
+
+//     double new_weight = 1.0 / new_particles.size();
+//     for (auto& np : new_particles)
+//     {
+//         np.weight = new_weight;
+//     }
+
+//     particles_ = std::move(new_particles);
+// }
+void MCL::resample_()
 {
     std::vector<Particle> new_particles;
-    new_particles.reserve(max_particles_);
+    new_particles.reserve(n_particles_);
 
-    std::unordered_set<std::tuple<int, int, int>, BinHash> occupied_bins;
-
-    double p_random = std::max(0.0, 1.0 - w_fast_ / w_slow_);
     std::uniform_real_distribution<double> unit_dist(0.0, 1.0);
     
-    double inv_n = 1.0 / particles_.size();
+    // Чистый Low-variance sampler
+    double inv_n = 1.0 / n_particles_;
     double r = unit_dist(gen_) * inv_n;
     double c = particles_[0].weight;
     int i = 0;
@@ -135,122 +215,30 @@ void AMCL::resample_()
     std::normal_distribution<double> jitter_pos(0.0, 0.03);
     std::normal_distribution<double> jitter_rot(0.0, 0.02);
 
-    int k = 0;
-    int n_req = min_particles_; 
-    int m = 0;
-
-    while (new_particles.size() < max_particles_ && 
-          (new_particles.size() < n_req || new_particles.size() < min_particles_))
+    for (int m = 0; m < n_particles_; ++m)
     {
-        Particle p;
-
-        if (unit_dist(gen_) < p_random)
+        double u = r + m * inv_n;
+        while (u > c && i < n_particles_ - 1)
         {
-            p = generate_random_particle_();
-        }
-        else
-        {
-            double u = r + m * inv_n;
-            while (u > c && i < particles_.size() - 1)
-            {
-                i++;
-                c += particles_[i].weight;
-            }
-
-            p = particles_[i];
-            
-            p.pose.x += jitter_pos(gen_);
-            p.pose.y += jitter_pos(gen_);
-            p.pose.theta += jitter_rot(gen_);
-            
-            p.weight = 1.0; 
-            m++;
+            i++;
+            c += particles_[i].weight;
         }
 
-        int bin_x = static_cast<int>(p.pose.x / bin_size_x_);
-        int bin_y = static_cast<int>(p.pose.y / bin_size_y_);
-        int bin_theta = static_cast<int>(p.pose.theta / bin_size_theta_);
-        auto bin = std::make_tuple(bin_x, bin_y, bin_theta);
-
-        if (occupied_bins.find(bin) == occupied_bins.end())
-        {
-            occupied_bins.insert(bin);
-            k++;
-            
-            if (k > 1)
-            {
-                double a = 1.0 - 2.0 / (9.0 * (k - 1));
-                double b = kld_z_ * std::sqrt(2.0 / (9.0 * (k - 1)));
-                n_req = static_cast<int>( (k - 1) / (2.0 * kld_err_) * std::pow(a + b, 3) );
-            }
-        }
-
+        Particle p = particles_[i];
+        
+        // Микро-шум, чтобы выжившие клоны не накладывались в одну точку
+        p.pose.x += jitter_pos(gen_);
+        p.pose.y += jitter_pos(gen_);
+        p.pose.theta += jitter_rot(gen_);
+        
+        p.weight = inv_n;
         new_particles.push_back(p);
-    }
-
-    double new_weight = 1.0 / new_particles.size();
-    for (auto& np : new_particles)
-    {
-        np.weight = new_weight;
     }
 
     particles_ = std::move(new_particles);
 }
 
-// void AMCL::resample()
-// {
-//     std::vector<Particle> new_particles;
-//     new_particles.reserve(n_particles_);
-
-//     // Вычисляем вероятность вброса случайной частицы
-//     // Если w_fast значительно меньше w_slow, p_random растет
-//     double p_random = std::max(0.0, 1.0 - w_fast_ / w_slow_);
-
-//     std::uniform_real_distribution<double> unit_dist(0.0, 1.0);
-    
-//     // Настройка Low-variance sampler
-//     double inv_n = 1.0 / n_particles_;
-//     double r = unit_dist(gen_) * inv_n;
-//     double c = particles_[0].weight;
-//     int i = 0;
-
-//     // Параметры джиттера (раздувания облака)
-//     std::normal_distribution<double> jitter_pos(0.0, 0.03);
-//     std::normal_distribution<double> jitter_rot(0.0, 0.02);
-
-//     for (int m = 0; m < n_particles_; ++m)
-//     {
-//         if (unit_dist(gen_) < p_random)
-//         {
-//             // Вбрасываем абсолютно новую гипотезу в случайное место
-//             new_particles.push_back(generate_random_particle_());
-//         }
-//         else
-//         {
-//             // Стандартный систематический ресемплинг
-//             double u = r + m * inv_n;
-//             while (u > c && i < n_particles_ - 1)
-//             {
-//                 i++;
-//                 c += particles_[i].weight;
-//             }
-
-//             Particle p = particles_[i];
-            
-//             // Накладываем шум на клонов, чтобы облако не схлопывалось
-//             p.pose.x += jitter_pos(gen_);
-//             p.pose.y += jitter_pos(gen_);
-//             p.pose.theta += jitter_rot(gen_);
-            
-//             p.weight = inv_n;
-//             new_particles.push_back(p);
-//         }
-//     }
-
-//     particles_ = std::move(new_particles);
-// }
-
-Pose AMCL::get_estimated_pose() const
+Pose MCL::get_estimated_pose() const
 {
     if (particles_.empty())
     {
@@ -308,7 +296,7 @@ Pose AMCL::get_estimated_pose() const
     return est;
 }
 
-void AMCL::normalize_weights_()
+void MCL::normalize_weights_()
 {
     double sum = 0.0;
     for (const auto& p : particles_)
@@ -329,7 +317,7 @@ void AMCL::normalize_weights_()
     }
 }
 
-double AMCL::calculate_cloud_dispersion_()
+double MCL::calculate_cloud_dispersion_()
 {
     if (particles_.empty())
     {
@@ -359,7 +347,7 @@ double AMCL::calculate_cloud_dispersion_()
     return total_dist / particles_.size();
 }
 
-Particle AMCL::generate_random_particle_()
+Particle MCL::generate_random_particle_()
 {
     double phys_width = map_.width() * map_.resolution();
     double phys_height = map_.height() * map_.resolution();
