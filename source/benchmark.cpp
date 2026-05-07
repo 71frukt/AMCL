@@ -10,8 +10,10 @@
 #include <random>
 #include <cmath>
 
-Benchmark::Benchmark(const Map& map, int num_particles)
-    : map_(map), n_particles_(num_particles)
+Benchmark::Benchmark(const Map& map, int min_particles, int max_particles)
+    : map_(map)
+    , min_particles_(min_particles)
+    , max_particles_(max_particles)   
 {
 }
 
@@ -30,10 +32,8 @@ void Benchmark::run_simulation(int steps, const std::string& csv_filepath)
     Odometry blind_odom(gt_pose);
 
     Lidar lidar(gt_pose, map_);
-    AMCL amcl(n_particles_, map_, lidar);
+    AMCL amcl(min_particles_, max_particles_, map_, lidar);
     
-    amcl.initialize_particles();
-
     std::mt19937 gen(42); // Seed 42 гарантирует, что хаотичный маршрут будет повторяться при перезапусках
     std::normal_distribution<double> noise_odom_dist(0.0, 0.05);
     std::normal_distribution<double> noise_odom_theta(0.0, 0.02);
@@ -120,9 +120,7 @@ void Benchmark::run_simulation(int steps, const std::string& csv_filepath)
         }
 
         // 4. Обновление AMCL
-        amcl.predict(measured_dist, measured_theta); 
-        amcl.update(noisy_scan);
-        amcl.resample();
+        amcl.update(measured_dist, measured_theta, noisy_scan);
 
         Pose amcl_pose = amcl.get_estimated_pose();
         Pose final_odom = blind_odom.get_pose();

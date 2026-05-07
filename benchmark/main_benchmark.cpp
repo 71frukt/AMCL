@@ -8,7 +8,7 @@ int main()
     const Map& map = maps::GetMap1();
     
     // Инициализация бенчмарка - 2500 частиц
-    Benchmark bench(map, 2500);
+    Benchmark bench(map, 200, 2500);
     
     // Симулируем 500 шагов, результат кладем в корень запуска
     bench.run_simulation(500, "benchmark_results.csv");

@@ -9,6 +9,8 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 find_package(SFML COMPONENTS graphics window system REQUIRED)
 
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/fonts DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/)
+
 add_executable(amcl_game
     source/main.cpp
     source/game_manager.cpp

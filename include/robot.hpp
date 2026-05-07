@@ -32,4 +32,5 @@ private:
     std::mt19937 gen_;
 
     Pose last_amcl_pose_;
+    Pose last_amcl_odom_pose_;
 };

@@ -53,4 +53,7 @@ private:
     void draw_robot_(const Pose& pose, sf::Color color, bool is_outline = false);
     
     void render_();
+
+    sf::Font font_;
+    sf::Text text_particle_count_;
 };

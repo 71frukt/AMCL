@@ -44,9 +44,9 @@ def main():
     ax1.imshow(map_grid, extent=[0, 16, 0, 16], origin='lower', cmap='Greys', alpha=0.3)
 
     # --- График 1: Траектории (Вид сверху на карту) ---
-    ax1.plot(df['gt_x'].to_numpy(), df['gt_y'].to_numpy(), label='Ground Truth (Истина)', color='green', linewidth=2)
-    ax1.plot(df['odom_x'].to_numpy(), df['odom_y'].to_numpy(), label='Dead Reckoning (Слепая одометрия)', color='red', linestyle='dashed')
-    ax1.plot(df['amcl_x'].to_numpy(), df['amcl_y'].to_numpy(), label='AMCL Estimate', color='blue', alpha=0.7)
+    ax1.plot(df['gt_x']  .to_numpy(), df['gt_y']  .to_numpy(), label='Ground Truth',  color='green', linewidth=2)
+    ax1.plot(df['odom_x'].to_numpy(), df['odom_y'].to_numpy(), label='Odometry',      color='red',   linestyle='dashed')
+    ax1.plot(df['amcl_x'].to_numpy(), df['amcl_y'].to_numpy(), label='AMCL Estimate', color='blue',  alpha=0.7)
     
     ax1.set_title('Trajectory Comparison', fontsize=14)
     ax1.set_xlabel('X (meters)')
