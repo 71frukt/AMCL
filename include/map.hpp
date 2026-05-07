@@ -20,6 +20,8 @@ public:
         }
     }
 
+    const std::vector<int>& get_data() const { return data_; }
+
     bool is_wall_at_grid(int grid_x, int grid_y) const
     {
         if (grid_x < 0 || grid_x >= static_cast<int>(width_) ||

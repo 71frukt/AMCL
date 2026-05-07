@@ -27,3 +27,12 @@ target_link_libraries(amcl_game
         sfml-window
         sfml-system
 )
+
+# =========== БЕНЧМАРКИ =====================================
+add_executable(run_benchmark 
+    benchmark/main_benchmark.cpp 
+    source/benchmark.cpp 
+    source/amcl.cpp
+    source/robot.cpp
+)
+target_include_directories(run_benchmark PRIVATE include)
