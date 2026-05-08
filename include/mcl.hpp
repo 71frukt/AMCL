@@ -9,7 +9,6 @@
 #include "lidar.hpp"
 #include "amcl.hpp"
 
-
 class MCL
 {
 public:
@@ -18,9 +17,7 @@ public:
     void update(double odom_distance, double odom_dtheta, const std::vector<double>& actual_scan);
     
     Pose get_estimated_pose() const;
-
     const std::vector<Particle>& get_particles() const { return particles_; }
-    
     size_t get_particle_count() const { return particles_.size(); }
 
 private:

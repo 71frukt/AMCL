@@ -11,7 +11,7 @@ int main()
     Benchmark bench(map, 200, 2500);
     
     // Симулируем 500 шагов, результат кладем в корень запуска
-    bench.run_simulation(500, "benchmark_results.csv");
+    bench.run_simulation(307, "benchmark_results.csv");
 
     return 0;
 }

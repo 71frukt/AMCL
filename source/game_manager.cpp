@@ -20,8 +20,8 @@ GameManager::GameManager(int window_width, int window_height, float pixels_per_m
     else
     {
         text_particle_count_.setFont(font_);
-        text_particle_count_.setCharacterSize(20); // Размер шрифта
-        text_particle_count_.setFillColor(sf::Color::Yellow); // Цвет текста
+        text_particle_count_.setCharacterSize(30); // Размер шрифта
+        text_particle_count_.setFillColor(sf::Color::Cyan); // Цвет текста
         text_particle_count_.setPosition(10.f, 10.f); // Отступ от левого верхнего угла
     }
 }

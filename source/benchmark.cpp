@@ -11,7 +11,7 @@
 
 Benchmark::Benchmark(const Map& map, int min_particles, int max_particles)
     : map_(map)
-    , lidar_(Pose{8.0, 8.0, 0.0}, map)
+    , lidar_(Pose{10.0, 8.0, 0.0}, map)
     , amcl_(min_particles, max_particles, map_, lidar_)
     , mcl_( max_particles, map_, lidar_)
     , naive_localizer_(map_, lidar_, 0.4, 0.2)
@@ -33,7 +33,7 @@ void Benchmark::run_simulation(int steps, const std::string& csv_filepath)
     file << "step,gt_x,gt_y,odom_x,odom_y,amcl_x,amcl_y,mcl_x,mcl_y,naive_x,naive_y,"
          << "err_odom,err_amcl,err_mcl,err_naive,time_amcl_us,time_mcl_us,time_naive_us\n";
 
-    Pose gt_pose{8.0, 8.0, 0.0};
+    Pose gt_pose{10.0, 8.0, 0.0};
     Odometry blind_odom(gt_pose);
 
     std::mt19937 gen(42); // Seed 42 гарантирует, что хаотичный маршрут будет повторяться при перезапусках

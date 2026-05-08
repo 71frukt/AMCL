@@ -59,7 +59,7 @@ void Robot::update_amcl()
     double dx = current_odom.x - last_amcl_odom_pose_.x;
     double dy = current_odom.y - last_amcl_odom_pose_.y;
     
-    double dist_moved = std::sqrt(dx * dx + dy * dy);
+    double dist_moved = dx * std::cos(last_amcl_odom_pose_.theta) + dy * std::sin(last_amcl_odom_pose_.theta);
     double dtheta_moved = normalize_angle(current_odom.theta - last_amcl_odom_pose_.theta);
 
     // Условие срабатывания: 10 см или ~5 градусов
