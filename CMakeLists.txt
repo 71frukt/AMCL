@@ -9,11 +9,15 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 find_package(SFML COMPONENTS graphics window system REQUIRED)
 
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/fonts DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/)
+
 add_executable(amcl_game
     source/main.cpp
     source/game_manager.cpp
     source/robot.cpp
     source/amcl.cpp
+    source/mcl.cpp
+    source/naive_localizer.cpp
 )
 
 target_include_directories(amcl_game
@@ -27,3 +31,14 @@ target_link_libraries(amcl_game
         sfml-window
         sfml-system
 )
+
+# =========== БЕНЧМАРКИ =====================================
+add_executable(run_benchmark 
+    benchmark/main_benchmark.cpp 
+    source/benchmark.cpp 
+    source/amcl.cpp
+    source/mcl.cpp
+    source/robot.cpp
+    source/naive_localizer.cpp
+)
+target_include_directories(run_benchmark PRIVATE include)

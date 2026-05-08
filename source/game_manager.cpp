@@ -1,7 +1,7 @@
 #include "game_manager.hpp"
 #include <SFML/Graphics.hpp>
 #include <SFML/Window.hpp>
-
+#include <iostream>
 
 GameManager::GameManager(int window_width, int window_height, float pixels_per_meter)
     : window_(sf::VideoMode(window_width, window_height), "AMCL Particle Filter MVP"),
@@ -11,6 +11,19 @@ GameManager::GameManager(int window_width, int window_height, float pixels_per_m
 {
     window_.setFramerateLimit(60);
     init_map_();
+
+    if (!font_.loadFromFile("fonts/Ubuntu-C.ttf"))
+    {
+        std::cerr << "Failed to load font!\n";
+    }
+
+    else
+    {
+        text_particle_count_.setFont(font_);
+        text_particle_count_.setCharacterSize(30); // Размер шрифта
+        text_particle_count_.setFillColor(sf::Color::Cyan); // Цвет текста
+        text_particle_count_.setPosition(10.f, 10.f); // Отступ от левого верхнего угла
+    }
 }
 
 void GameManager::run()
@@ -138,6 +151,10 @@ void GameManager::draw_particles_()
         p_shape.setFillColor(sf::Color(50, 200, 50, 180));
         window_.draw(p_shape);
     }
+
+    std::string info = "Particles: " + std::to_string(robot_.get_particles().size());
+    text_particle_count_.setString(info);
+    window_.draw(text_particle_count_);
 }
 
 void GameManager::draw_robot_(const Pose& pose, sf::Color color, bool is_outline)
